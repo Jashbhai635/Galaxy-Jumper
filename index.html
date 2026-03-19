@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaxy Jumper - Optimized</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { overflow: hidden; background: linear-gradient(to bottom, #0a0a2a, #1a1a40); color: white; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        
+        #gameContainer { position: relative; width: 100%; max-width: 800px; height: 600px; margin: auto; border-radius: 20px; overflow: hidden; box-shadow: 0 0 50px rgba(0, 200, 255, 0.5); }
+        canvas { display: block; background: radial-gradient(circle at center, #000428, #004e92); transition: filter 0.3s; }
+        .distorted { filter: blur(8px) hue-rotate(90deg); }
+
+        /* Screens */
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0, 10, 30, 0.95); z-index: 100; padding: 20px; text-align: center; }
+        #rulesScreen { text-align: left; align-items: center; overflow-y: auto; }
+        .rules-content { max-width: 600px; background: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 15px; margin-bottom: 20px; font-size: 0.85rem; line-height: 1.4; }
+        .hidden { display: none !important; }
+
+        /* Typography & Buttons */
+        h1 { font-size: 4rem; margin-bottom: 20px; background: linear-gradient(to right, #00dbde, #fc00ff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 15px rgba(255, 255, 255, 0.5); }
+        h2 { font-size: 2.5rem; margin-bottom: 10px; color: #00ffcc; }
+        .btn { background: linear-gradient(to right, #00c6ff, #0072ff); color: white; border: none; padding: 12px 35px; font-size: 1.2rem; border-radius: 50px; cursor: pointer; margin: 5px; transition: all 0.3s; box-shadow: 0 5px 20px rgba(0, 114, 255, 0.5); }
+        .btn:hover { transform: scale(1.05); }
+        .btn-secondary { background: linear-gradient(to right, #666, #333); }
+
+        /* UI Elements */
+        #ui { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; display: flex; justify-content: space-between; z-index: 50; pointer-events: none; gap: 10px; }
+        .ui-box { background: rgba(0, 20, 40, 0.7); padding: 10px 15px; border-radius: 15px; border: 2px solid #00aaff; min-width: 90px; text-align: center; backdrop-filter: blur(5px); }
+        .ui-title { font-size: 0.8rem; color: #88ddff; }
+        .ui-value { font-size: 1.5rem; font-weight: bold; color: #00ffcc; }
+
+        /* Warnings */
+        #gravityWarning, #errorWarning { position: absolute; top: 85px; left: 50%; transform: translateX(-50%); padding: 5px 15px; border-radius: 20px; font-weight: bold; display: none; z-index: 6; animation: pulse 1s infinite; }
+        #gravityWarning { background: rgba(255, 100, 0, 0.6); color: white; }
+        #errorWarning { background: rgba(138, 43, 226, 0.8); color: white; top: 120px; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        /* Character Select */
+        #characterSelect { display: flex; gap: 15px; margin: 15px 0; flex-wrap: wrap; justify-content: center; }
+        .character-container { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .character { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(45deg, #333, #666); display: flex; justify-content: center; align-items: center; font-size: 1.8rem; cursor: pointer; border: 3px solid transparent; transition: all 0.3s; }
+        .character.selected { border-color: #00ffcc; box-shadow: 0 0 20px #00ffcc; }
+        .ability-text { font-size: 0.6rem; color: #00ffcc; max-width: 70px; }
+        
+        /* Mobile Controls */
+        #controls { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: space-around; z-index: 50; pointer-events: none; padding: 0 20px; }
+        .control-hitbox { padding: 20px; pointer-events: auto; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+        .control-btn { width: 75px; height: 75px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); border: 3px solid rgba(255, 255, 255, 0.5); display: flex; justify-content: center; align-items: center; font-size: 2rem; color: white; backdrop-filter: blur(5px); transition: transform 0.1s; }
+        .control-hitbox:active .control-btn { transform: scale(0.9); background: rgba(255, 255, 255, 0.4); }
+
+        /* Powerup Bars */
+        .bar-container { position: absolute; left: 50%; transform: translateX(-50%); width: 200px; height: 10px; background: rgba(0, 0, 0, 0.5); border-radius: 5px; display: none; z-index: 50; }
+        #magnetBarContainer { bottom: 120px; border: 1px solid #ff00ff; }
+        #shieldBarContainer { bottom: 135px; border: 1px solid #00ffff; }
+        #blastBarContainer { bottom: 150px; border: 1px solid #ffffff; }
+        #droneBarContainer { bottom: 165px; border: 1px solid #00ff00; }
+        .bar-fill { width: 100%; height: 100%; border-radius: 4px; transition: width 0.1s linear; }
+        #magnetBar { background: linear-gradient(to right, #ff00ff, #00ffff); }
+        #shieldBar { background: linear-gradient(to right, #00ffff, #0088ff); }
+        #blastBar { background: linear-gradient(to right, #ffffff, #ffaa00); }
+        #droneBar { background: linear-gradient(to right, #00ff00, #aaff00); }
+        #blastFlash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 200; transition: opacity 0.5s ease-out; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="blastFlash"></div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="gravityWarning">⚠️ GRAVITY DISTORTION</div>
+        <div id="errorWarning">⚠️ SYSTEM ERROR: INVERTED</div>
+        
+        <div id="ui">
+            <div class="ui-box"><div class="ui-title">SCORE</div><div id="score" class="ui-value">0</div></div>
+            <div class="ui-box"><div class="ui-title">BEST</div><div id="highScore" class="ui-value">0</div></div>
+            <div class="ui-box"><div class="ui-title">COINS</div><div id="coins" class="ui-value">0</div></div>
+            <div class="ui-box"><div class="ui-title">SPEED</div><div id="speed" class="ui-value">1.5x</div></div>
+        </div>
+
+        <div id="droneBarContainer" class="bar-container"><div id="droneBar" class="bar-fill"></div></div>
+        <div id="blastBarContainer" class="bar-container"><div id="blastBar" class="bar-fill"></div></div>
+        <div id="shieldBarContainer" class="bar-container"><div id="shieldBar" class="bar-fill"></div></div>
+        <div id="magnetBarContainer" class="bar-container"><div id="magnetBar" class="bar-fill"></div></div>
+
+        <div id="startScreen" class="screen">
+            <h1>GALAXY JUMPER</h1>
+            <div id="characterSelect">
+                <div class="character-container"><div class="character selected" data-char="comet">💫</div><span class="ability-text">Double Jump</span></div>
+                <div class="character-container"><div class="character" data-char="superstar">🌟</div><span class="ability-text">Magnet King</span></div>
+                <div class="character-container"><div class="character" data-char="smallstar">⭐</div><span class="ability-text">Coin Collector</span></div>
+                <div class="character-container"><div class="character" data-char="pulse">⚡</div><span class="ability-text">High Speed</span></div>
+                <div class="character-container"><div class="character" data-char="flare">☀️</div><span class="ability-text">Slow Gravity</span></div>
+            </div>
+            <button id="startBtn" class="btn">LAUNCH MISSION</button>
+            <button id="rulesBtn" class="btn btn-secondary">RULES</button>
+        </div>
+
+        <div id="rulesScreen" class="screen hidden">
+            <h2 style="color: #ff00ff;">MISSION MANUAL</h2>
+            <div class="rules-content">
+                <p><strong>🛑 HAZARDS:</strong> Avoid Red/Pink/Orange objects and Sentinels.</p>
+                <p><strong>🚀 FLIGHT:</strong> Tap UP to jump. Continuous tapping pushes obstacles down!</p>
+                <p><strong>🛸 DRONE:</strong> Equips auto-firing drones (6-Bullet Triple Spread).</p>
+                <p><strong>🧲 MAGNET:</strong> Pulls nearby yellow coins toward you.</p>
+                <p><strong>🛡️ SHIELD:</strong> Absorbs one collision with an obstacle.</p>
+                <p><strong>💥 SUPERNOVA:</strong> Clears all hazards for 3.5s (Spawns every 750pts).</p>
+                <p><strong>🌀 NEBULA:</strong> Inverts controls and blurs view temporarily.</p>
+                <p><strong>💰 COINS:</strong> Collect yellow spheres to increase your total.</p>
+            </div>
+            <button id="backToMenuBtn" class="btn">BACK TO MENU</button>
+        </div>
+
+        <div id="gameOverScreen" class="screen hidden">
+            <h2>MISSION FAILED</h2>
+            <div class="score-display" id="finalScore" style="font-size: 2.5rem; color: #00ffcc; margin: 10px;">0</div>
+            <div class="best-display" style="margin-bottom: 25px;">HIGH SCORE: <span id="finalBest">0</span></div>
+            <div style="display: flex; gap: 15px;">
+                <button id="restartBtn" class="btn">RETRY</button>
+                <button id="menuBtn" class="btn btn-secondary">MENU</button>
+            </div>
+        </div>
+
+        <div id="controls">
+            <div class="control-hitbox" id="leftZone"><div class="control-btn">←</div></div>
+            <div class="control-hitbox" id="jumpZone"><div class="control-btn">↑</div></div>
+            <div class="control-hitbox" id="rightZone"><div class="control-btn">→</div></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
